@@ -10,6 +10,7 @@ module Network.Hoggl (currentTimeEntry
                      ,prettyCurrent
                      ,timeEntriesDay
                      ,timeEntriesToday
+                     ,timeEntriesFromTillNow
 
                      ,pretty
                      ,calcDuration
@@ -136,3 +137,8 @@ timeEntriesToday :: Token -> EitherT ServantError IO [TimeEntry]
 timeEntriesToday authorization = do
   now <- liftIO getCurrentTime
   timeEntriesDay authorization (utctDay now)
+
+timeEntriesFromTillNow :: Token -> Day -> EitherT ServantError IO [TimeEntry]
+timeEntriesFromTillNow authorization start = do
+  now <- liftIO getCurrentTime
+  getEntries authorization (ISO6801 (UTCTime start 0)) (ISO6801 now)
