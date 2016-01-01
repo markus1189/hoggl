@@ -10,6 +10,9 @@ module Network.Hoggl (currentTimeEntry
                      ,prettyCurrent
                      ,timeEntriesDay
                      ,timeEntriesToday
+
+                     ,pretty
+                     ,calcDuration
                      ) where
 
 import           Control.Monad.IO.Class (liftIO)
