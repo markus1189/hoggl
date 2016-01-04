@@ -49,7 +49,7 @@ run (HoggleArgs auth lastDow workHours HowLong) = do
     Right ts -> do
       worked <- sum <$> traverse calcDuration ts
       req <- requiredTime lastDow workHours
-      let diff = worked - fromIntegral req
+      let diff = fromIntegral req - worked
       T.putStrLn (pretty diff)
 
 data HoggleArgs = HoggleArgs Token Integer Integer HoggleCmd
