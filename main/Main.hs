@@ -1,10 +1,12 @@
 module Main where
 
 import           Control.Monad.Trans.Either (runEitherT)
+import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import           Data.Time.Calendar (Day)
 import           Data.Time.Calendar.WeekDate (toWeekDate, fromWeekDate)
-import           Data.Time.Clock (UTCTime(..), getCurrentTime)
+import           Data.Time.Clock (UTCTime(..), getCurrentTime, addUTCTime)
+import           Data.Time.Format (formatTime, defaultTimeLocale)
 import           GHC.IO.Handle.FD (stderr)
 import           Options.Applicative
 import           System.Exit (exitFailure)
@@ -50,7 +52,9 @@ run (HoggleArgs auth lastDow workHours HowLong) = do
       worked <- sum <$> traverse calcDuration ts
       req <- requiredTime lastDow workHours
       let diff = fromIntegral req - worked
-      T.putStrLn (pretty diff)
+      endTime <- addUTCTime diff <$> getCurrentTime
+      let fendTime = formatTime defaultTimeLocale "%R" endTime
+      T.putStrLn $ pretty diff <> T.pack (", average reached at " <> fendTime)
 
 data HoggleArgs = HoggleArgs Token Integer Integer HoggleCmd
 data HoggleCmd = TimeToday | StartTimer | StopTimer | HowLong
