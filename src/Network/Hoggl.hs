@@ -4,6 +4,7 @@ module Network.Hoggl (currentTimeEntry
                      ,startTimer
                      ,getTimer
                      ,getEntries
+                     ,listWorkspaces'
 
                      ,tryStartDefault
                      ,tryStopRunning
@@ -18,6 +19,7 @@ module Network.Hoggl (currentTimeEntry
 
 import           Control.Monad.IO.Class (liftIO)
 import           Control.Monad.Trans.Either (EitherT(..), runEitherT)
+import           Data.Aeson (Value)
 import           Data.Bifunctor (first)
 import           Data.Fixed (mod')
 import           Data.Proxy (Proxy(Proxy))
@@ -31,24 +33,21 @@ import           Formatting (sformat, (%), float)
 import           Servant.API
 import           Servant.Client
 
-import           Network.Hoggl.Types (Token(..)
-                                     ,TogglApi
-                                     ,TimeEntry(..)
-                                     ,TimeEntryId(..)
-                                     ,TimeEntryStart(..)
-                                     ,ISO6801(..)
-                                     ,HogglError(..))
+import           Network.Hoggl.Types
 
-togglAPI :: Proxy TogglApi
-togglAPI = Proxy
+togglBaseUrl = BaseUrl Https "toggl.com" 443
+
+togglApi :: Proxy TogglApi
+togglApi = Proxy
 
 currentTimeEntry' :: Maybe Token -> EitherT ServantError IO TimeEntry
 stopTimer' :: Maybe Token -> TimeEntryId -> EitherT ServantError IO TimeEntry
 startTimer' :: Maybe Token -> TimeEntryStart -> EitherT ServantError IO TimeEntry
 getTimer' :: Maybe Token -> TimeEntryId -> EitherT ServantError IO TimeEntry
 getEntries' :: Maybe Token -> Maybe ISO6801 -> Maybe ISO6801 -> EitherT ServantError IO [TimeEntry]
-(currentTimeEntry' :<|> stopTimer' :<|> startTimer' :<|> getTimer' :<|> getEntries') =
-  client togglAPI (BaseUrl Https "toggl.com" 443)
+listWorkspaces' :: Maybe Token -> EitherT ServantError IO [Workspace]
+(currentTimeEntry' :<|> stopTimer' :<|> startTimer' :<|> getTimer' :<|> getEntries' :<|> listWorkspaces') =
+  client togglApi togglBaseUrl
 
 currentTimeEntry :: Token -> EitherT ServantError IO (Maybe TimeEntry)
 currentTimeEntry token = EitherT $ do
@@ -69,6 +68,32 @@ getTimer tk = getTimer' (Just tk)
 
 getEntries :: Token -> ISO6801 -> ISO6801 -> EitherT ServantError IO [TimeEntry]
 getEntries tk start end = getEntries' (Just tk) (Just start) (Just end)
+
+listWorkspaces :: Token -> EitherT ServantError IO [Workspace]
+listWorkspaces token = listWorkspaces' (Just token)
+
+togglReportApi :: Proxy ToggleReportApi
+togglReportApi = Proxy
+
+detailedReport' :: Maybe Token
+                -> Maybe WorkspaceId
+                -> Maybe ISO6801Date
+                -> Maybe ISO6801Date
+                -> Maybe Text
+                -> EitherT ServantError IO DetailedReport
+detailedReport' = client togglReportApi togglBaseUrl
+
+detailedReport :: Token
+               -> WorkspaceId
+               -> ISO6801Date
+               -> ISO6801Date
+               -> Text
+               -> EitherT ServantError IO DetailedReport
+detailedReport tk wid since untl userAgent = detailedReport' (Just tk)
+                                                             (Just wid)
+                                                             (Just since)
+                                                             (Just untl)
+                                                             (Just userAgent)
 
 defaultTimeEntry :: TimeEntryStart
 defaultTimeEntry = TES {tesDescription = Nothing
