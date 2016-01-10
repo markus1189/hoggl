@@ -1,3 +1,4 @@
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -26,8 +27,7 @@ import           Data.Text (Text)
 import qualified Data.Text as T
 import           Data.Time.Calendar (Day)
 import           Data.Time.Clock (UTCTime, NominalDiffTime)
-import           Data.Time.Format (defaultTimeLocale, formatTime)
-import           Data.Time.Format (parseTimeM, iso8601DateFormat)
+import           Data.Time.Format (defaultTimeLocale, formatTime, parseTimeM, iso8601DateFormat)
 import           Servant.API
 import           Servant.Client
 
@@ -143,12 +143,14 @@ instance FromJSON DetailedReport where
                                         <*> o .: "data"
   parseJSON _ = mzero
 
-type Current = "api" :> "v8" :> "time_entries" :> Header "Authorization" Token :> "current" :> Get '[JSON] TimeEntry
-type Stop = "api" :> "v8" :> "time_entries" :> Header "Authorization" Token :> Capture "time_entry_id" TimeEntryId :> "stop" :> Put '[JSON] TimeEntry
-type Start = "api" :> "v8" :> "time_entries" :> "start" :> Header "Authorization" Token :> ReqBody '[JSON] TimeEntryStart :> Post '[JSON] TimeEntry
-type Details = "api" :> "v8" :> "time_entries" :> Header "Authorization" Token :> Capture "time_entry_id" TimeEntryId :> Get '[JSON] TimeEntry
-type GetEntries = "api" :> "v8" :> "time_entries" :> Header "Authorization" Token :> QueryParam "start_date" ISO6801 :> QueryParam "end_date" ISO6801 :> Get '[JSON] [TimeEntry]
-type ListWorkspaces = "api" :> "v8" :> "workspaces" :> Header "Authorization" Token :> Get '[JSON] [Workspace]
+type WithAuth a = "api" :> "v8" :> Header "Authorization" Token :> a
+
+type Current =        WithAuth ("time_entries" :> "current" :> Get '[JSON] TimeEntry)
+type Stop =           WithAuth ("time_entries" :> Capture "time_entry_id" TimeEntryId :> "stop" :> Put '[JSON] TimeEntry)
+type Start =          WithAuth ("time_entries" :> "start" :> ReqBody '[JSON] TimeEntryStart :> Post '[JSON] TimeEntry)
+type Details =        WithAuth ("time_entries" :> Capture "time_entry_id" TimeEntryId :> Get '[JSON] TimeEntry)
+type GetEntries =     WithAuth ("time_entries" :> QueryParam "start_date" ISO6801 :> QueryParam "end_date" ISO6801 :> Get '[JSON] [TimeEntry])
+type ListWorkspaces = WithAuth ("workspaces" :> Get '[JSON] [Workspace])
 
 type TogglApi = Current :<|> Stop :<|> Start :<|> Details :<|> GetEntries :<|> ListWorkspaces
 

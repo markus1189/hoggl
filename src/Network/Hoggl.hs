@@ -4,7 +4,8 @@ module Network.Hoggl (currentTimeEntry
                      ,startTimer
                      ,getTimer
                      ,getEntries
-                     ,listWorkspaces'
+                     ,listWorkspaces
+                     ,detailedReport
 
                      ,tryStartDefault
                      ,tryStopRunning
@@ -19,7 +20,6 @@ module Network.Hoggl (currentTimeEntry
 
 import           Control.Monad.IO.Class (liftIO)
 import           Control.Monad.Trans.Either (EitherT(..), runEitherT)
-import           Data.Aeson (Value)
 import           Data.Bifunctor (first)
 import           Data.Fixed (mod')
 import           Data.Proxy (Proxy(Proxy))
@@ -35,6 +35,7 @@ import           Servant.Client
 
 import           Network.Hoggl.Types
 
+togglBaseUrl :: BaseUrl
 togglBaseUrl = BaseUrl Https "toggl.com" 443
 
 togglApi :: Proxy TogglApi

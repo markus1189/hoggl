@@ -12,6 +12,7 @@ library
   ghc-options:       -Wall
   exposed-modules:     Network.Hoggl
                      , Network.Hoggl.Types
+                     , Network.Hoggl.Pretty
   other-extensions:    DataKinds
                      , GeneralizedNewtypeDeriving
                      , OverloadedStrings
@@ -39,4 +40,5 @@ executable hoggl
                      , optparse-applicative
                      , text
                      , time
+                     , transformers
   default-language:    Haskell2010
