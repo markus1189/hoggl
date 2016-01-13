@@ -71,7 +71,9 @@ run (HoggleArgs auth lastDow workHours HowLong) = do
 
 run (HoggleArgs auth _ _ (Report rSince rUntil)) = do
   tSince <- parseTimeM True defaultTimeLocale "%d-%m-%y" rSince
-  tUntil <- parseTimeM True defaultTimeLocale "%d-%m-%y" rUntil
+  tUntil <- case rUntil of
+    Just rUntil' -> parseTimeM True defaultTimeLocale "%d-%m-%y" rUntil'
+    Nothing -> utctDay <$> getCurrentTime
   eResult <- runEitherT $ do
     ws <- listWorkspaces auth
     when (length ws /= 1) (lift $ die "Ambiguous workspace")
@@ -81,7 +83,9 @@ run (HoggleArgs auth _ _ (Report rSince rUntil)) = do
                    (ISO6801Date tUntil)
                    "hoggl"
   case eResult of
-    Left _ -> die "Failed to get report."
+    Left e -> do
+      print e
+      die "Failed to get report."
     Right report -> print report
 
 data HoggleArgs = HoggleArgs Token Integer Integer HoggleCmd
@@ -91,7 +95,7 @@ data HoggleCmd = TimeToday
                | HowLong
                | Info
                | Report {reportSince :: String
-                        ,reportUntil :: String
+                        ,reportUntil :: Maybe String
                         }
 
 token :: Parser Token
@@ -125,7 +129,7 @@ howLongCmd = command "howlong" (info (pure HowLong) (progDesc "How long until 8h
 
 reportCmd :: Mod CommandFields HoggleCmd
 reportCmd = command "report" (info (Report <$> strArgument (metavar "SINCE")
-                                           <*> strArgument (metavar "UNTIL"))
+                                           <*> optional (strArgument (metavar "UNTIL")))
                                    (progDesc "Request a report for the specified time range."))
 
 infoCmd :: Mod CommandFields HoggleCmd
