@@ -19,7 +19,7 @@ module Network.Hoggl.Types (TimeEntryId(..)
 
 import           Codec.Binary.Base64.String (encode)
 import           Control.Applicative ((<|>))
-import           Control.Monad (mzero, mplus)
+import           Control.Monad (mzero)
 import           Data.Aeson (FromJSON(..), Value (..), (.:), (.:?), ToJSON(..), object, (.=), (.!=))
 import           Data.Monoid ((<>))
 import           Data.String (IsString)
@@ -91,11 +91,11 @@ data TimeEntry = TimeEntry {teId :: TimeEntryId
                            }deriving (Show,Eq)
 
 instance FromJSON TimeEntry where
-  parseJSON v@(Object o) = p v `mplus` ((o .: "data") >>= p)
+  parseJSON v@(Object o) = ((o .: "data") >>= p) <|> p v
     where p (Object d) = TimeEntry <$> d .: "id"
-                                   <*> d .: "pid"
-                                   <*> d .: "project"
-                                   <*> d .: "client"
+                                   <*> d .:? "pid"
+                                   <*> d .:? "project"
+                                   <*> d .:? "client"
                                    <*> d .: "start"
                                    <*> d .:? "stop"
                                    <*> (convert <$> ((d .: "duration") <|> (d .: "dur")))
