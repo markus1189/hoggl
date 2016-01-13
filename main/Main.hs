@@ -129,7 +129,7 @@ reportCmd = command "report" (info (Report <$> strArgument (metavar "SINCE")
                                    (progDesc "Request a report for the specified time range."))
 
 infoCmd :: Mod CommandFields HoggleCmd
-infoCmd = command "info" (info (pure Info) (progDesc "Dsiplay workspaces, clients and projects"))
+infoCmd = command "info" (info (pure Info) (progDesc "Display workspaces, clients and projects"))
 
 hoggleArgsParser :: Parser HoggleArgs
 hoggleArgsParser = HoggleArgs <$> token <*> lastDowOpt <*> workHoursOpt <*> subparser (todayCmd <> startTimerCmd <> stopTimerCmd <> howLongCmd <> reportCmd <> infoCmd)
