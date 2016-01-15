@@ -5,6 +5,8 @@ import           Control.Monad (when)
 import           Control.Monad.Trans.Class (lift)
 import           Control.Monad.Trans.Either (runEitherT)
 import           Data.Foldable (for_)
+import           Data.Function (on)
+import           Data.List (groupBy,sortOn)
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import           Data.Time.Calendar (Day)
@@ -86,7 +88,14 @@ run (HoggleArgs auth _ _ (Report rSince rUntil)) = do
     Left e -> do
       print e
       die "Failed to get report."
-    Right report -> print report
+    Right report -> do
+      for_ (groupBy ((==) `on` (utctDay . unpack . teStart)) . sortOn teStart . drData $ report) $ \tesPerDay -> do
+        durations <- traverse calcDuration tesPerDay
+        T.putStrLn (T.pack (formatTime defaultTimeLocale "%d-%m-%y" (unpack (teStart (head tesPerDay))))
+                 <> ": "
+                 <> pretty (sum durations))
+      T.putStrLn ("Total: " <> pretty (fromIntegral (drTotalGrand report)))
+  where unpack (ISO6801 x) = x
 
 data HoggleArgs = HoggleArgs Token Integer Integer HoggleCmd
 data HoggleCmd = TimeToday

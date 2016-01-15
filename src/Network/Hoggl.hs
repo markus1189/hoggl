@@ -24,11 +24,9 @@ import           Data.Bifunctor (first)
 import           Data.Fixed (mod')
 import           Data.Proxy (Proxy(Proxy))
 import           Data.Text (Text)
-import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import           Data.Time.Calendar (Day)
-import           Data.Time.Clock (UTCTime(..), NominalDiffTime, getCurrentTime, diffUTCTime, UTCTime)
-import           Data.Time.Format (parseTimeM, defaultTimeLocale, iso8601DateFormat)
+import           Data.Time.Clock (UTCTime(..), NominalDiffTime, getCurrentTime, diffUTCTime)
 import           Formatting (sformat, (%), float)
 import           Servant.API
 import           Servant.Client
@@ -109,15 +107,8 @@ calcDuration te =
     Just _ -> return (teDuration te)
     Nothing -> do
       stop <- getCurrentTime
-      start <- parseStart te
       return (diffUTCTime stop start)
-
-parseStart :: TimeEntry -> IO UTCTime
-parseStart TimeEntry { teStart = s } =
-  parseTimeM True
-             defaultTimeLocale
-             (iso8601DateFormat (Just "%H:%M:%S+00:00"))
-             (T.unpack s)
+  where ISO6801 start = teStart te
 
 pretty :: RealFrac n => n -> Text
 pretty n =

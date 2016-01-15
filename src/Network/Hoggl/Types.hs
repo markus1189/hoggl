@@ -15,7 +15,9 @@ module Network.Hoggl.Types (TimeEntryId(..)
                            ,ProjectId(..)
                            ,DetailedReport(..)
                            ,TogglApi
-                           ,ToggleReportApi) where
+                           ,ToggleReportApi
+
+                           ,parseTimeStamp) where
 
 import           Codec.Binary.Base64.String (encode)
 import           Control.Applicative ((<|>))
@@ -36,8 +38,8 @@ newtype TimeEntryId = TID Integer deriving (Show,Eq,FromJSON,ToText)
 newtype WorkspaceId = WID Integer deriving (Show,Eq,FromJSON,ToText)
 newtype ProjectId = PID Integer deriving (Show,Eq,FromJSON,ToText)
 newtype ApiToken = ApiToken String deriving (IsString)
-newtype ISO6801 = ISO6801 UTCTime deriving (Show,Eq)
-newtype ISO6801Date = ISO6801Date Day deriving (Show,Eq)
+newtype ISO6801 = ISO6801 UTCTime deriving (Show,Eq,Ord)
+newtype ISO6801Date = ISO6801Date Day deriving (Show,Eq,Ord)
 
 instance ToText ISO6801 where
   toText (ISO6801 t) =
@@ -54,7 +56,15 @@ instance FromJSON ISO6801 where
   parseJSON _ = mzero
 
 parseTimeStamp :: Monad m => Text -> m UTCTime
-parseTimeStamp ts = parseTimeM True defaultTimeLocale (iso8601DateFormat (Just "%H:%M:%S+00:00")) (T.unpack ts)
+parseTimeStamp ts =
+  parseTimeM True
+             defaultTimeLocale
+             (iso8601DateFormat (Just "%H:%M:%S%z"))
+             (removeColon (T.unpack ts))
+  where removeColon s =
+          reverse (dropWhile (/= '+') (reverse s)) ++
+            reverse (filter (/= ':') (takeWhile (/= '+') (reverse s)))
+
 
 instance ToText ISO6801Date where
   toText (ISO6801Date day) = toText (formatTime defaultTimeLocale "%Y-%m-%d" day)
@@ -85,8 +95,8 @@ data TimeEntry = TimeEntry {teId :: TimeEntryId
                            ,teProjectId :: Maybe ProjectId
                            ,teProject :: Maybe Text
                            ,teClient :: Maybe Text
-                           ,teStart :: Text
-                           ,teStop :: Maybe Text
+                           ,teStart :: ISO6801
+                           ,teStop :: Maybe ISO6801
                            ,teDuration :: NominalDiffTime
                            ,teDescription :: Maybe Text
                            }deriving (Show,Eq)
@@ -98,8 +108,8 @@ instance FromJSON TimeEntry where
                                    <*> d .:?? "project"
                                    <*> d .:?? "client"
                                    <*> d .: "start"
-                                   <*> d .:?? "stop"
-                                   <*> (convert <$> ((d .: "duration") <|> (d .: "dur")))
+                                   <*> (d .:? "end" <|> d .:? "stop")
+                                   <*> (convert <$> ((d .: "duration") <|> ((`div` 1000) <$> (d .: "dur"))))
                                    <*> d .:? "description"
           p _ = mzero
           convert :: Integer -> NominalDiffTime
@@ -111,8 +121,6 @@ obj .:?? key = case H.lookup key obj of
                Nothing -> pure Nothing
                Just Null -> pure Nothing
                Just v  -> Just <$> parseJSON v
-  where
-    addKeyName = (("failed to parse field " <> T.unpack key <> ": ") <>)
 {-# INLINE (.:??) #-}
 
 data Workspace = Workspace {wsId :: WorkspaceId
@@ -149,7 +157,7 @@ instance FromJSON DetailedReport where
   parseJSON (Object o) = DetailedReport <$> o .: "per_page"
                                         <*> o .: "total_count"
                                         <*> o .:? "total_billable" .!= 0
-                                        <*> o .: "total_grand"
+                                        <*> ((`div` 1000 ) <$> (o .: "total_grand"))
                                         <*> o .: "data"
   parseJSON _ = mzero
 
