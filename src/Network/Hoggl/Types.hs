@@ -108,7 +108,7 @@ instance FromJSON TimeEntry where
                                    <*> d .:?? "project"
                                    <*> d .:?? "client"
                                    <*> d .: "start"
-                                   <*> (d .:? "end" <|> d .:? "stop")
+                                   <*> (d .: "stop" <|> d.:?? "end")
                                    <*> (convert <$> ((d .: "duration") <|> ((`div` 1000) <$> (d .: "dur"))))
                                    <*> d .:? "description"
           p _ = mzero
