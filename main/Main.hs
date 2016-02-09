@@ -9,7 +9,7 @@ import           Data.Function (on)
 import           Data.List (groupBy,sortOn)
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
-import           Data.Time.Calendar (Day)
+import           Data.Time.Calendar (Day, fromGregorian, toGregorian)
 import           Data.Time.Calendar.WeekDate (toWeekDate, fromWeekDate)
 import           Data.Time.Clock (UTCTime(..), getCurrentTime, addUTCTime)
 import           Data.Time.Format (formatTime, defaultTimeLocale, parseTimeM)
@@ -37,6 +37,16 @@ run (HoggleArgs auth _ _ TimeToday) = do
     Right ts -> do
       ds <- traverse calcDuration ts
       T.putStrLn (pretty (sum ds))
+
+run (HoggleArgs auth _ _ TimeWeek) = do
+  day <- utctDay <$> getCurrentTime
+  let (year,weekNr,dow) = toWeekDate day
+  doReport auth (fromWeekDate year weekNr 1) (fromWeekDate year weekNr dow)
+
+run (HoggleArgs auth _ _ TimeMonth) = do
+  day <- utctDay <$> getCurrentTime
+  let (year,month,dom) = toGregorian day
+  doReport auth (fromGregorian year month 1) (fromGregorian year month dom)
 
 run (HoggleArgs auth _ _ StartTimer) = do
   e <- tryStartDefault auth
@@ -72,10 +82,14 @@ run (HoggleArgs auth lastDow workHours HowLong) = do
       T.putStrLn $ pretty diff <> T.pack (", average reached at " <> fendTime)
 
 run (HoggleArgs auth _ _ (Report rSince rUntil)) = do
-  tSince <- parseTimeM True defaultTimeLocale "%d-%m-%y" rSince
+  tSince <- parseTimeM True defaultTimeLocale dateFormat rSince
   tUntil <- case rUntil of
-    Just rUntil' -> parseTimeM True defaultTimeLocale "%d-%m-%y" rUntil'
+    Just rUntil' -> parseTimeM True defaultTimeLocale dateFormat rUntil'
     Nothing -> utctDay <$> getCurrentTime
+  doReport auth tSince tUntil
+
+doReport :: Token -> Day -> Day -> IO ()
+doReport auth tSince tUntil = do
   eResult <- runEitherT $ do
     ws <- listWorkspaces auth
     when (length ws /= 1) (lift $ die "Ambiguous workspace")
@@ -91,7 +105,7 @@ run (HoggleArgs auth _ _ (Report rSince rUntil)) = do
     Right report -> do
       for_ (groupBy ((==) `on` (utctDay . unpack . teStart)) . sortOn teStart . drData $ report) $ \tesPerDay -> do
         durations <- traverse calcDuration tesPerDay
-        T.putStrLn (T.pack (formatTime defaultTimeLocale "%d-%m-%y" (unpack (teStart (head tesPerDay))))
+        T.putStrLn (T.pack (formatTime defaultTimeLocale dateFormat (unpack (teStart (head tesPerDay))))
                  <> ": "
                  <> pretty (sum durations))
       T.putStrLn ("Total: " <> pretty (fromIntegral (drTotalGrand report)))
@@ -99,6 +113,8 @@ run (HoggleArgs auth _ _ (Report rSince rUntil)) = do
 
 data HoggleArgs = HoggleArgs Token Integer Integer HoggleCmd
 data HoggleCmd = TimeToday
+               | TimeWeek
+               | TimeMonth
                | StartTimer
                | StopTimer
                | HowLong
@@ -127,6 +143,12 @@ workHoursOpt = option auto (long "work-yours"
 todayCmd :: Mod CommandFields HoggleCmd
 todayCmd = command "today" (info (pure TimeToday) (progDesc "List today's time."))
 
+weekCmd :: Mod CommandFields HoggleCmd
+weekCmd = command "week" (info (pure TimeWeek) (progDesc "List this week's time."))
+
+monthCmd :: Mod CommandFields HoggleCmd
+monthCmd = command "month" (info (pure TimeMonth) (progDesc "List this month's time."))
+
 startTimerCmd :: Mod CommandFields HoggleCmd
 startTimerCmd = command "start" (info (pure StartTimer) (progDesc "Start a timer."))
 
@@ -145,7 +167,18 @@ infoCmd :: Mod CommandFields HoggleCmd
 infoCmd = command "info" (info (pure Info) (progDesc "Display workspaces, clients and projects"))
 
 hoggleArgsParser :: Parser HoggleArgs
-hoggleArgsParser = HoggleArgs <$> token <*> lastDowOpt <*> workHoursOpt <*> subparser (todayCmd <> startTimerCmd <> stopTimerCmd <> howLongCmd <> reportCmd <> infoCmd)
+hoggleArgsParser = HoggleArgs
+               <$> token
+               <*> lastDowOpt
+               <*> workHoursOpt
+               <*> subparser (todayCmd
+                           <> weekCmd
+                           <> monthCmd
+                           <> startTimerCmd
+                           <> stopTimerCmd
+                           <> howLongCmd
+                           <> reportCmd
+                           <> infoCmd)
 
 startOfCurrentWeek :: IO Day
 startOfCurrentWeek = do
@@ -167,3 +200,6 @@ requiredTime lastDow hoursPerDay = dowToSecondsNeeded
                                <$> getCurrentTime
   where thrd (_,_,x) = x
         dowToSecondsNeeded dow = dow * hoursPerDay * 60 * 60
+
+dateFormat :: String
+dateFormat = "%Y-%m-%d"
