@@ -22,8 +22,8 @@ library
                      , base64-string
                      , either
                      , formatting
-                     , servant
-                     , servant-client
+                     , servant < 0.5
+                     , servant-client < 0.5
                      , text
                      , time
                      , transformers
