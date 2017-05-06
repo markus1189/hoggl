@@ -13,13 +13,13 @@ module Network.Hoggl (currentTimeEntry
                      ,timeEntriesDay
                      ,timeEntriesToday
                      ,timeEntriesFromTillNow
-
+                     ,togglBaseUrl
                      ,pretty
                      ,calcDuration
                      ) where
 
+import           Control.Monad.Error.Class
 import           Control.Monad.IO.Class (liftIO)
-import           Control.Monad.Trans.Either (EitherT(..), runEitherT)
 import           Data.Bifunctor (first)
 import           Data.Fixed (mod')
 import           Data.Proxy (Proxy(Proxy))
@@ -28,47 +28,48 @@ import qualified Data.Text.IO as T
 import           Data.Time.Calendar (Day)
 import           Data.Time.Clock (UTCTime(..), NominalDiffTime, getCurrentTime, diffUTCTime)
 import           Formatting (sformat, (%), float)
+import           Network.HTTP.Client (newManager)
+import           Network.HTTP.Client.TLS (tlsManagerSettings)
 import           Servant.API
 import           Servant.Client
 
 import           Network.Hoggl.Types
 
 togglBaseUrl :: BaseUrl
-togglBaseUrl = BaseUrl Https "toggl.com" 443
+togglBaseUrl = BaseUrl Https "toggl.com" 443 "/"
 
 togglApi :: Proxy TogglApi
 togglApi = Proxy
 
-currentTimeEntry' :: Maybe Token -> EitherT ServantError IO TimeEntry
-stopTimer' :: Maybe Token -> TimeEntryId -> EitherT ServantError IO TimeEntry
-startTimer' :: Maybe Token -> TimeEntryStart -> EitherT ServantError IO TimeEntry
-getTimer' :: Maybe Token -> TimeEntryId -> EitherT ServantError IO TimeEntry
-getEntries' :: Maybe Token -> Maybe ISO6801 -> Maybe ISO6801 -> EitherT ServantError IO [TimeEntry]
-listWorkspaces' :: Maybe Token -> EitherT ServantError IO [Workspace]
+currentTimeEntry' :: Maybe Token -> ClientM TimeEntry
+stopTimer' :: Maybe Token -> TimeEntryId -> ClientM TimeEntry
+startTimer' :: Maybe Token -> TimeEntryStart -> ClientM TimeEntry
+getTimer' :: Maybe Token -> TimeEntryId -> ClientM TimeEntry
+getEntries' :: Maybe Token -> Maybe ISO6801 -> Maybe ISO6801 -> ClientM [TimeEntry]
+listWorkspaces' :: Maybe Token -> ClientM [Workspace]
 (currentTimeEntry' :<|> stopTimer' :<|> startTimer' :<|> getTimer' :<|> getEntries' :<|> listWorkspaces') =
-  client togglApi togglBaseUrl
+  client togglApi
 
-currentTimeEntry :: Token -> EitherT ServantError IO (Maybe TimeEntry)
-currentTimeEntry token = EitherT $ do
-  res <- runEitherT (currentTimeEntry' (Just token))
-  case res of
-    Left DecodeFailure {responseBody = "{\"data\":null}"} -> return (Right Nothing)
-    Left e -> return (Left e)
-    Right te -> return (Right (Just te))
+currentTimeEntry :: Token -> ClientM (Maybe TimeEntry)
+currentTimeEntry token = (Just <$> currentTimeEntry' (Just token)) `catchError` handler
+  where
+    handler :: ServantError -> ClientM (Maybe TimeEntry)
+    handler DecodeFailure {responseBody = "{\"data\":null}"} = return Nothing
+    handler e = throwError e
 
-stopTimer :: Token -> TimeEntryId -> EitherT ServantError IO TimeEntry
+stopTimer :: Token -> TimeEntryId -> ClientM TimeEntry
 stopTimer tk = stopTimer' (Just tk)
 
-startTimer :: Token -> TimeEntryStart -> EitherT ServantError IO TimeEntry
+startTimer :: Token -> TimeEntryStart -> ClientM TimeEntry
 startTimer tk = startTimer' (Just tk)
 
-getTimer :: Token -> TimeEntryId -> EitherT ServantError IO TimeEntry
+getTimer :: Token -> TimeEntryId -> ClientM TimeEntry
 getTimer tk = getTimer' (Just tk)
 
-getEntries :: Token -> ISO6801 -> ISO6801 -> EitherT ServantError IO [TimeEntry]
+getEntries :: Token -> ISO6801 -> ISO6801 -> ClientM [TimeEntry]
 getEntries tk start end = getEntries' (Just tk) (Just start) (Just end)
 
-listWorkspaces :: Token -> EitherT ServantError IO [Workspace]
+listWorkspaces :: Token -> ClientM [Workspace]
 listWorkspaces token = listWorkspaces' (Just token)
 
 togglReportApi :: Proxy ToggleReportApi
@@ -79,15 +80,15 @@ detailedReport' :: Maybe Token
                 -> Maybe ISO6801Date
                 -> Maybe ISO6801Date
                 -> Maybe Text
-                -> EitherT ServantError IO DetailedReport
-detailedReport' = client togglReportApi togglBaseUrl
+                -> ClientM DetailedReport
+detailedReport' = client togglReportApi
 
 detailedReport :: Token
                -> WorkspaceId
                -> ISO6801Date
                -> ISO6801Date
                -> Text
-               -> EitherT ServantError IO DetailedReport
+               -> ClientM DetailedReport
 detailedReport tk wid since untl userAgent = detailedReport' (Just tk)
                                                              (Just wid)
                                                              (Just since)
@@ -121,41 +122,46 @@ pretty n =
 
 prettyCurrent :: Token -> IO ()
 prettyCurrent authorization = do
-  etimer <- runEitherT (currentTimeEntry authorization)
+  manager <- newManager tlsManagerSettings
+  etimer <- runClientM (currentTimeEntry authorization) $ ClientEnv manager togglBaseUrl
   case etimer of
     Right (Just timer) -> calcDuration timer >>= T.putStrLn . pretty
     _ -> return ()
 
 tryStartDefault :: Token -> IO (Either HogglError TimeEntry)
 tryStartDefault authorization = do
-  currentTimer <- runEitherT (currentTimeEntry authorization)
+  manager <- newManager tlsManagerSettings
+  let clientEnv = ClientEnv manager togglBaseUrl
+  currentTimer <- runClientM (currentTimeEntry authorization) clientEnv
   case currentTimer of
     Right Nothing ->
-      first ServantError <$> runEitherT (startTimer authorization defaultTimeEntry)
+      first ServantError <$> runClientM (startTimer authorization defaultTimeEntry) clientEnv
     Right (Just _) -> return (Left (HogglError "There already is a running timer!"))
     Left e -> return (Left (ServantError e))
 
 tryStopRunning :: Token -> IO (Either HogglError TimeEntry)
 tryStopRunning authorization = do
-  currentTimer <- runEitherT (currentTimeEntry authorization)
+  manager <- newManager tlsManagerSettings
+  let clientEnv = ClientEnv manager togglBaseUrl
+  currentTimer <- runClientM (currentTimeEntry authorization) clientEnv
   case currentTimer of
     Right (Just TimeEntry {teId = tid}) ->
-      first ServantError <$> runEitherT (stopTimer authorization tid)
+      first ServantError <$> runClientM (stopTimer authorization tid) clientEnv
     Right Nothing -> return (Left (HogglError "No timer running!"))
     Left e -> return (Left (ServantError e))
 
-timeEntriesDay :: Token -> Day -> EitherT ServantError IO [TimeEntry]
+timeEntriesDay :: Token -> Day -> ClientM [TimeEntry]
 timeEntriesDay authorization day = do
   let start = UTCTime { utctDay = day, utctDayTime = 0 }
       end = start { utctDay = day, utctDayTime =  86399 }
   getEntries authorization (ISO6801 start) (ISO6801 end)
 
-timeEntriesToday :: Token -> EitherT ServantError IO [TimeEntry]
+timeEntriesToday :: Token -> ClientM [TimeEntry]
 timeEntriesToday authorization = do
   now <- liftIO getCurrentTime
   timeEntriesDay authorization (utctDay now)
 
-timeEntriesFromTillNow :: Token -> Day -> EitherT ServantError IO [TimeEntry]
+timeEntriesFromTillNow :: Token -> Day -> ClientM [TimeEntry]
 timeEntriesFromTillNow authorization start = do
   now <- liftIO getCurrentTime
   getEntries authorization (ISO6801 (UTCTime start 0)) (ISO6801 now)

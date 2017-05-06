@@ -1,5 +1,5 @@
 name:                hoggl
-version:             0.1.0.0
+version:             0.2.0.0
 license:             BSD3
 license-file:        LICENSE
 author:              Markus Hauck
@@ -18,12 +18,15 @@ library
                      , OverloadedStrings
                      , TypeOperators
   build-depends:       aeson
-                     , base >=4.8 && <4.9
+                     , base >=4.9 && < 5
                      , base64-string
                      , either
                      , formatting
-                     , servant < 0.5
-                     , servant-client < 0.5
+                     , http-client < 0.6
+                     , http-client-tls
+                     , mtl
+                     , servant >= 0.9
+                     , servant-client >= 0.9
                      , text
                      , time
                      , transformers
@@ -38,7 +41,10 @@ executable hoggl
   build-depends:       base >= 4 && < 5
                      , either
                      , hoggl
+                     , http-client
+                     , http-client-tls
                      , optparse-applicative
+                     , servant-client
                      , text
                      , time
                      , transformers

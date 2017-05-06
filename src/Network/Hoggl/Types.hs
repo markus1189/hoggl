@@ -34,16 +34,16 @@ import           Data.Time.Format (defaultTimeLocale, formatTime, parseTimeM, is
 import           Servant.API
 import           Servant.Client
 
-newtype TimeEntryId = TID Integer deriving (Show,Eq,FromJSON,ToText)
-newtype WorkspaceId = WID Integer deriving (Show,Eq,FromJSON,ToText)
-newtype ProjectId = PID Integer deriving (Show,Eq,FromJSON,ToText)
+newtype TimeEntryId = TID Integer deriving (Show,Eq,FromJSON,ToHttpApiData)
+newtype WorkspaceId = WID Integer deriving (Show,Eq,FromJSON,ToHttpApiData)
+newtype ProjectId = PID Integer deriving (Show,Eq,FromJSON)
 newtype ApiToken = ApiToken String deriving (IsString)
 newtype ISO6801 = ISO6801 UTCTime deriving (Show,Eq,Ord)
 newtype ISO6801Date = ISO6801Date Day deriving (Show,Eq,Ord)
 
-instance ToText ISO6801 where
-  toText (ISO6801 t) =
-    toText . addColon $ formatTime defaultTimeLocale "%Y-%m-%dT%H%::%M:%S%z" t
+instance ToHttpApiData ISO6801 where
+   toUrlPiece (ISO6801 t) =
+     toUrlPiece . addColon $ formatTime defaultTimeLocale "%Y-%m-%dT%H%::%M:%S%z" t
 
 addColon :: String -> String
 addColon s = reverse (p2 <> ":" <> su)
@@ -66,16 +66,16 @@ parseTimeStamp ts =
             reverse (filter (/= ':') (takeWhile (/= '+') (reverse s)))
 
 
-instance ToText ISO6801Date where
-  toText (ISO6801Date day) = toText (formatTime defaultTimeLocale "%Y-%m-%d" day)
+instance ToHttpApiData ISO6801Date where
+   toUrlPiece (ISO6801Date day) = toUrlPiece (formatTime defaultTimeLocale "%Y-%m-%d" day)
 
 data Token = Api String
            | UserPass String String
            deriving (Show,Eq)
 
-instance ToText Token where
-  toText (Api token) = toText $ "Basic " ++ encode (token ++ ":api_token")
-  toText (UserPass user pass) = toText $ "Basic " ++ encode (user ++ ":" ++ pass)
+instance ToHttpApiData Token where
+   toUrlPiece (Api token) = toUrlPiece $ "Basic " ++ encode (token ++ ":api_token")
+   toUrlPiece (UserPass user pass) = toUrlPiece $ "Basic " ++ encode (user ++ ":" ++ pass)
 
 data HogglError = ServantError ServantError | HogglError String deriving Show
 

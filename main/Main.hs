@@ -2,11 +2,11 @@
 module Main where
 
 import           Control.Monad (when)
-import           Control.Monad.Trans.Class (lift)
-import           Control.Monad.Trans.Either (runEitherT)
+import           Control.Monad.IO.Class (liftIO)
 import           Data.Foldable (for_)
 import           Data.Function (on)
 import           Data.List (groupBy,sortOn)
+import           Data.Monoid ((<>))
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import           Data.Time.Calendar (Day, fromGregorian, toGregorian)
@@ -14,7 +14,10 @@ import           Data.Time.Calendar.WeekDate (toWeekDate, fromWeekDate)
 import           Data.Time.Clock (UTCTime(..), getCurrentTime, addUTCTime)
 import           Data.Time.Format (formatTime, defaultTimeLocale, parseTimeM)
 import           GHC.IO.Handle.FD (stderr)
+import           Network.HTTP.Client (newManager)
+import           Network.HTTP.Client.TLS (tlsManagerSettings)
 import           Options.Applicative
+import           Servant.Client
 import           System.Exit (exitFailure, exitFailure)
 import           System.IO (hPutStrLn)
 
@@ -31,7 +34,9 @@ main = execParser opts >>= run
 
 run :: HoggleArgs -> IO ()
 run (HoggleArgs auth _ _ TimeToday) = do
-  e <- runEitherT (timeEntriesToday auth)
+  manager <- newManager tlsManagerSettings
+  let clientEnv = ClientEnv manager togglBaseUrl
+  e <- runClientM (timeEntriesToday auth) clientEnv
   case e of
     Left _ -> die "There was an error."
     Right ts -> do
@@ -61,7 +66,9 @@ run (HoggleArgs auth _ _ StopTimer) = do
     Right _ -> return ()
 
 run (HoggleArgs auth _ _ Info) = do
-  e <- runEitherT (listWorkspaces auth)
+  manager <- newManager tlsManagerSettings
+  let clientEnv = ClientEnv manager togglBaseUrl
+  e <- runClientM (listWorkspaces auth) clientEnv
   case e of
     Left _ -> die "Failed to get workspaces."
     Right ws -> do
@@ -69,8 +76,10 @@ run (HoggleArgs auth _ _ Info) = do
       for_ ws (putStrLn . ("- " <>) . workspacePretty)
 
 run (HoggleArgs auth lastDow workHours HowLong) = do
+  manager <- newManager tlsManagerSettings
+  let clientEnv = ClientEnv manager togglBaseUrl
   start <- startOfCurrentWeek
-  eCurLogged <- runEitherT (timeEntriesFromTillNow auth start)
+  eCurLogged <- runClientM (timeEntriesFromTillNow auth start) clientEnv
   case eCurLogged of
     Left _ -> die "Failed to get time entries."
     Right ts -> do
@@ -90,14 +99,16 @@ run (HoggleArgs auth _ _ (Report rSince rUntil)) = do
 
 doReport :: Token -> Day -> Day -> IO ()
 doReport auth tSince tUntil = do
-  eResult <- runEitherT $ do
+  manager <- newManager tlsManagerSettings
+  let clientEnv = ClientEnv manager togglBaseUrl
+  eResult <- runClientM (do
     ws <- listWorkspaces auth
-    when (length ws /= 1) (lift $ die "Ambiguous workspace")
+    when (length ws /= 1) (liftIO $ die "Ambiguous workspace")
     detailedReport auth
                    (wsId (head ws))
                    (ISO6801Date tSince)
                    (ISO6801Date tUntil)
-                   "hoggl"
+                   "hoggl") clientEnv
   case eResult of
     Left e -> do
       print e
