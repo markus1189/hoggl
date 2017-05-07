@@ -5,6 +5,7 @@ module Network.Hoggl (currentTimeEntry
                      ,getTimer
                      ,getEntries
                      ,listWorkspaces
+                     ,listProjects
                      ,detailedReport
 
                      ,tryStartDefault
@@ -36,7 +37,7 @@ import           Servant.Client
 import           Network.Hoggl.Types
 
 togglBaseUrl :: BaseUrl
-togglBaseUrl = BaseUrl Https "toggl.com" 443 "/"
+togglBaseUrl = BaseUrl Https "toggl.com" 443 "/api"
 
 togglApi :: Proxy TogglApi
 togglApi = Proxy
@@ -47,7 +48,8 @@ startTimer' :: Maybe Token -> TimeEntryStart -> ClientM TimeEntry
 getTimer' :: Maybe Token -> TimeEntryId -> ClientM TimeEntry
 getEntries' :: Maybe Token -> Maybe ISO6801 -> Maybe ISO6801 -> ClientM [TimeEntry]
 listWorkspaces' :: Maybe Token -> ClientM [Workspace]
-(currentTimeEntry' :<|> stopTimer' :<|> startTimer' :<|> getTimer' :<|> getEntries' :<|> listWorkspaces') =
+listProjects' :: Maybe Token -> WorkspaceId -> ClientM [Project]
+(currentTimeEntry' :<|> stopTimer' :<|> startTimer' :<|> getTimer' :<|> getEntries' :<|> listWorkspaces' :<|> listProjects') =
   client togglApi
 
 currentTimeEntry :: Token -> ClientM (Maybe TimeEntry)
@@ -71,6 +73,9 @@ getEntries tk start end = getEntries' (Just tk) (Just start) (Just end)
 
 listWorkspaces :: Token -> ClientM [Workspace]
 listWorkspaces token = listWorkspaces' (Just token)
+
+listProjects :: Token -> WorkspaceId -> ClientM [Project]
+listProjects token = listProjects' (Just token)
 
 togglReportApi :: Proxy ToggleReportApi
 togglReportApi = Proxy
