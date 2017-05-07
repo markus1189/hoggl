@@ -12,6 +12,7 @@ module Network.Hoggl.Types (TimeEntryId(..)
                            ,ISO6801Date(..)
                            ,Workspace(..)
                            ,WorkspaceId(..)
+                           ,Project(..)
                            ,ProjectId(..)
                            ,DetailedReport(..)
                            ,TogglApi
@@ -36,7 +37,7 @@ import           Servant.Client
 
 newtype TimeEntryId = TID Integer deriving (Show,Eq,FromJSON,ToHttpApiData)
 newtype WorkspaceId = WID Integer deriving (Show,Eq,FromJSON,ToHttpApiData)
-newtype ProjectId = PID Integer deriving (Show,Eq,FromJSON)
+newtype ProjectId = PID Integer deriving (Show,Eq,FromJSON,ToHttpApiData)
 newtype ApiToken = ApiToken String deriving (IsString)
 newtype ISO6801 = ISO6801 UTCTime deriving (Show,Eq,Ord)
 newtype ISO6801Date = ISO6801Date Day deriving (Show,Eq,Ord)
@@ -146,6 +147,25 @@ instance FromJSON Workspace where
                                    <*> o .: "at"
   parseJSON _ = mzero
 
+data Project = Project { prId :: ProjectId
+                       , prWsId :: WorkspaceId
+                       , prName :: Text
+                       , prBillable :: Bool
+                       , prPrivate :: Bool
+                       , prActive :: Bool
+                       , prAt :: ISO6801
+                       }
+
+instance FromJSON Project where
+  parseJSON (Object o) = Project <$> o .: "id"
+                                 <*> o .: "wid"
+                                 <*> o .: "name"
+                                 <*> o .: "billable"
+                                 <*> o .: "is_private"
+                                 <*> o .: "active"
+                                 <*> o .: "at"
+  parseJSON _ = mzero
+
 data DetailedReport = DetailedReport {drPerPage :: Int
                                      ,drTotalCount :: Int
                                      ,drTotalBillable :: Double
@@ -169,8 +189,9 @@ type Start =          WithAuth ("time_entries" :> "start" :> ReqBody '[JSON] Tim
 type Details =        WithAuth ("time_entries" :> Capture "time_entry_id" TimeEntryId :> Get '[JSON] TimeEntry)
 type GetEntries =     WithAuth ("time_entries" :> QueryParam "start_date" ISO6801 :> QueryParam "end_date" ISO6801 :> Get '[JSON] [TimeEntry])
 type ListWorkspaces = WithAuth ("workspaces" :> Get '[JSON] [Workspace])
+type ListProjects =   WithAuth ("workspaces" :> Capture "workspace_id" WorkspaceId :> "projects" :> Get '[JSON] [Project])
 
-type TogglApi = Current :<|> Stop :<|> Start :<|> Details :<|> GetEntries :<|> ListWorkspaces
+type TogglApi = Current :<|> Stop :<|> Start :<|> Details :<|> GetEntries :<|> ListWorkspaces :<|> ListProjects
 
 type GetDetailedReport = "reports" :> "api" :> "v2" :> "details" :> Header "Authorization" Token :> QueryParam "workspace_id" WorkspaceId :> QueryParam "since" ISO6801Date :> QueryParam "until" ISO6801Date :> QueryParam "user_agent" Text :> Get '[JSON] DetailedReport
 
