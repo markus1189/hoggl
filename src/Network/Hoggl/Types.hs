@@ -24,7 +24,9 @@ import           Codec.Binary.Base64.String (encode)
 import           Control.Applicative ((<|>))
 import           Control.Monad (mzero)
 import           Data.Aeson (FromJSON(..), Value (..), (.:), (.:?), ToJSON(..), object, (.=), (.!=))
+import           Data.Aeson.Types (Parser)
 import qualified Data.HashMap.Strict as H
+import           Data.Hashable (Hashable)
 import           Data.Monoid ((<>))
 import           Data.String (IsString)
 import           Data.Text (Text)
@@ -117,7 +119,7 @@ instance FromJSON TimeEntry where
           convert = fromIntegral
   parseJSON _ = mzero
 
---(.:??) :: (FromJSON a) => Object -> Text -> Parser (Maybe a)
+(.:??) :: (FromJSON a, Hashable k, Eq k) => H.HashMap k Value -> k -> Parser (Maybe a)
 obj .:?? key = case H.lookup key obj of
                Nothing -> pure Nothing
                Just Null -> pure Nothing
