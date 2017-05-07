@@ -37,7 +37,7 @@ import           Servant.Client
 import           Network.Hoggl.Types
 
 togglBaseUrl :: BaseUrl
-togglBaseUrl = BaseUrl Https "toggl.com" 443 "/api"
+togglBaseUrl = BaseUrl Https "toggl.com" 443 "/"
 
 togglApi :: Proxy TogglApi
 togglApi = Proxy

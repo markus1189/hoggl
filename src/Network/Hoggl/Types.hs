@@ -181,7 +181,7 @@ instance FromJSON DetailedReport where
                                         <*> o .: "data"
   parseJSON _ = mzero
 
-type WithAuth a = "v8" :> Header "Authorization" Token :> a
+type WithAuth a = "api" :> "v8" :> Header "Authorization" Token :> a
 
 type Current =        WithAuth ("time_entries" :> "current" :> Get '[JSON] TimeEntry)
 type Stop =           WithAuth ("time_entries" :> Capture "time_entry_id" TimeEntryId :> "stop" :> Put '[JSON] TimeEntry)
