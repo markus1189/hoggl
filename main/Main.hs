@@ -39,7 +39,7 @@ main = execParser opts >>= run
 run :: HoggleArgs -> IO ()
 run (HoggleArgs auth _ TimeToday) = do
   manager <- newManager tlsManagerSettings
-  let clientEnv = ClientEnv manager togglBaseUrl
+  let clientEnv = mkClientEnv manager togglBaseUrl
   e <- runClientM (timeEntriesToday auth) clientEnv
   case e of
     Left _ -> die "There was an error."
@@ -71,7 +71,7 @@ run (HoggleArgs auth _ StopTimer) = do
 
 run (HoggleArgs auth _ Info) = do
   manager <- newManager tlsManagerSettings
-  let clientEnv = ClientEnv manager togglBaseUrl
+  let clientEnv = mkClientEnv manager togglBaseUrl
   e <- runClientM (listWorkspaces auth) clientEnv
   case e of
     Left _ -> die "Failed to get workspaces."
@@ -81,7 +81,7 @@ run (HoggleArgs auth _ Info) = do
 
 run (HoggleArgs auth workHours HowLong) = do
   manager <- newManager tlsManagerSettings
-  let clientEnv = ClientEnv manager togglBaseUrl
+  let clientEnv = mkClientEnv manager togglBaseUrl
   start <- utctDay <$> getCurrentTime
   eCurLogged <- runClientM (timeEntriesFromTillNow auth start) clientEnv
   case eCurLogged of
@@ -101,7 +101,7 @@ run (HoggleArgs auth _ (Report rSince rUntil)) = do
 doReport :: Token -> Day -> Day -> IO ()
 doReport auth tSince tUntil = do
   manager <- newManager tlsManagerSettings
-  let clientEnv = ClientEnv manager togglBaseUrl
+  let clientEnv = mkClientEnv manager togglBaseUrl
   eResult <- runClientM (do
     ws <- listWorkspaces auth
     when (length ws /= 1) (liftIO $ die "Ambiguous workspace")
