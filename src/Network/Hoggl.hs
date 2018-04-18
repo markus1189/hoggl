@@ -56,7 +56,7 @@ currentTimeEntry :: Token -> ClientM (Maybe TimeEntry)
 currentTimeEntry token = (Just <$> currentTimeEntry' (Just token)) `catchError` handler
   where
     handler :: ServantError -> ClientM (Maybe TimeEntry)
-    handler DecodeFailure {responseBody = "{\"data\":null}"} = return Nothing
+    handler (DecodeFailure "{\"data\":null}" _) = return Nothing
     handler e = throwError e
 
 stopTimer :: Token -> TimeEntryId -> ClientM TimeEntry
@@ -128,7 +128,7 @@ pretty n =
 prettyCurrent :: Token -> IO ()
 prettyCurrent authorization = do
   manager <- newManager tlsManagerSettings
-  etimer <- runClientM (currentTimeEntry authorization) $ ClientEnv manager togglBaseUrl
+  etimer <- runClientM (currentTimeEntry authorization) $ mkClientEnv manager togglBaseUrl
   case etimer of
     Right (Just timer) -> calcDuration timer >>= T.putStrLn . pretty
     _ -> return ()
@@ -136,7 +136,7 @@ prettyCurrent authorization = do
 tryStartDefault :: Token -> IO (Either HogglError TimeEntry)
 tryStartDefault authorization = do
   manager <- newManager tlsManagerSettings
-  let clientEnv = ClientEnv manager togglBaseUrl
+  let clientEnv = mkClientEnv manager togglBaseUrl
   currentTimer <- runClientM (currentTimeEntry authorization) clientEnv
   case currentTimer of
     Right Nothing ->
@@ -147,7 +147,7 @@ tryStartDefault authorization = do
 tryStopRunning :: Token -> IO (Either HogglError TimeEntry)
 tryStopRunning authorization = do
   manager <- newManager tlsManagerSettings
-  let clientEnv = ClientEnv manager togglBaseUrl
+  let clientEnv = mkClientEnv manager togglBaseUrl
   currentTimer <- runClientM (currentTimeEntry authorization) clientEnv
   case currentTimer of
     Right (Just TimeEntry {teId = tid}) ->
