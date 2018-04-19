@@ -3,7 +3,7 @@ synopsis:            Bindings to the Toggl.com REST API
 description:         Toggl is a simple tool for time tracking. This package provides a library
                      for accessing the Toggl API from Haskell, and an example executable that uses
                      the library.
-version:             0.2.0.0
+version:             0.2.0.1
 license:             BSD3
 license-file:        LICENSE
 author:              Markus Hauck
