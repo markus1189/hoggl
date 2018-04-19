@@ -127,16 +127,16 @@ pretty n =
 
 prettyCurrent :: Token -> IO ()
 prettyCurrent authorization = do
-  manager <- newManager tlsManagerSettings
-  etimer <- runClientM (currentTimeEntry authorization) $ mkClientEnv manager togglBaseUrl
+  nmanager <- newManager tlsManagerSettings
+  etimer <- runClientM (currentTimeEntry authorization) $ mkClientEnv nmanager togglBaseUrl
   case etimer of
     Right (Just timer) -> calcDuration timer >>= T.putStrLn . pretty
     _ -> return ()
 
 tryStartDefault :: Token -> IO (Either HogglError TimeEntry)
 tryStartDefault authorization = do
-  manager <- newManager tlsManagerSettings
-  let clientEnv = mkClientEnv manager togglBaseUrl
+  nmanager <- newManager tlsManagerSettings
+  let clientEnv = mkClientEnv nmanager togglBaseUrl
   currentTimer <- runClientM (currentTimeEntry authorization) clientEnv
   case currentTimer of
     Right Nothing ->
@@ -146,8 +146,8 @@ tryStartDefault authorization = do
 
 tryStopRunning :: Token -> IO (Either HogglError TimeEntry)
 tryStopRunning authorization = do
-  manager <- newManager tlsManagerSettings
-  let clientEnv = mkClientEnv manager togglBaseUrl
+  nmanager <- newManager tlsManagerSettings
+  let clientEnv = mkClientEnv nmanager togglBaseUrl
   currentTimer <- runClientM (currentTimeEntry authorization) clientEnv
   case currentTimer of
     Right (Just TimeEntry {teId = tid}) ->
