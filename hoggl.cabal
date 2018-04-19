@@ -45,6 +45,7 @@ executable hoggl
   hs-source-dirs:      main
   build-depends:       base >= 4 && < 5
                      , either
+                     , formatting
                      , hoggl
                      , http-client
                      , http-client-tls

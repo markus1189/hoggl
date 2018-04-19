@@ -1,3 +1,4 @@
+{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Main where
 
@@ -11,8 +12,11 @@ import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import           Data.Time.Calendar (Day, fromGregorian, toGregorian)
 import           Data.Time.Calendar.WeekDate (toWeekDate, fromWeekDate)
-import           Data.Time.Clock (UTCTime(..), getCurrentTime, addUTCTime)
+import           Data.Time.Clock (UTCTime(..), getCurrentTime)
 import           Data.Time.Format (formatTime, defaultTimeLocale, parseTimeM)
+import           Formatting (sformat, (%))
+import qualified Formatting as F
+import qualified Formatting.Time as F
 import           GHC.IO.Handle.FD (stderr)
 import           Network.HTTP.Client (newManager)
 import           Network.HTTP.Client.TLS (tlsManagerSettings)
@@ -33,7 +37,7 @@ main = execParser opts >>= run
                   <> header "hoggl - the Haskell Toggl client.")
 
 run :: HoggleArgs -> IO ()
-run (HoggleArgs auth _ _ TimeToday) = do
+run (HoggleArgs auth _ TimeToday) = do
   manager <- newManager tlsManagerSettings
   let clientEnv = ClientEnv manager togglBaseUrl
   e <- runClientM (timeEntriesToday auth) clientEnv
@@ -43,29 +47,29 @@ run (HoggleArgs auth _ _ TimeToday) = do
       ds <- traverse calcDuration ts
       T.putStrLn (pretty (sum ds))
 
-run (HoggleArgs auth _ _ TimeWeek) = do
+run (HoggleArgs auth _ TimeWeek) = do
   day <- utctDay <$> getCurrentTime
   let (year,weekNr,dow) = toWeekDate day
   doReport auth (fromWeekDate year weekNr 1) (fromWeekDate year weekNr dow)
 
-run (HoggleArgs auth _ _ TimeMonth) = do
+run (HoggleArgs auth _ TimeMonth) = do
   day <- utctDay <$> getCurrentTime
   let (year,month,dom) = toGregorian day
   doReport auth (fromGregorian year month 1) (fromGregorian year month dom)
 
-run (HoggleArgs auth _ _ StartTimer) = do
+run (HoggleArgs auth _ StartTimer) = do
   e <- tryStartDefault auth
   case e of
     Left _ -> die "Failed to start timer."
     Right _ -> return ()
 
-run (HoggleArgs auth _ _ StopTimer) = do
+run (HoggleArgs auth _ StopTimer) = do
   e <- tryStopRunning auth
   case e of
     Left _ -> die "Failed to stop timer."
     Right _ -> return ()
 
-run (HoggleArgs auth _ _ Info) = do
+run (HoggleArgs auth _ Info) = do
   manager <- newManager tlsManagerSettings
   let clientEnv = ClientEnv manager togglBaseUrl
   e <- runClientM (listWorkspaces auth) clientEnv
@@ -75,22 +79,19 @@ run (HoggleArgs auth _ _ Info) = do
       putStrLn "Workspaces:"
       for_ ws (putStrLn . ("- " <>) . workspacePretty)
 
-run (HoggleArgs auth lastDow workHours HowLong) = do
+run (HoggleArgs auth workHours HowLong) = do
   manager <- newManager tlsManagerSettings
   let clientEnv = ClientEnv manager togglBaseUrl
-  start <- startOfCurrentWeek
+  start <- utctDay <$> getCurrentTime
   eCurLogged <- runClientM (timeEntriesFromTillNow auth start) clientEnv
   case eCurLogged of
     Left _ -> die "Failed to get time entries."
     Right ts -> do
       worked <- sum <$> traverse calcDuration ts
-      req <- requiredTime lastDow workHours
-      let diff = fromIntegral req - worked
-      endTime <- addUTCTime diff <$> getCurrentTime
-      let fendTime = formatTime defaultTimeLocale "%R" endTime
-      T.putStrLn $ pretty diff <> T.pack (", average reached at " <> fendTime)
+      let diff = (fromIntegral workHours * 60 * 60) - worked
+      T.putStrLn (sformat ("Target of " % F.int % " hours reached: " % F.diff True) workHours diff)
 
-run (HoggleArgs auth _ _ (Report rSince rUntil)) = do
+run (HoggleArgs auth _ (Report rSince rUntil)) = do
   tSince <- parseTimeM True defaultTimeLocale dateFormat rSince
   tUntil <- case rUntil of
     Just rUntil' -> parseTimeM True defaultTimeLocale dateFormat rUntil'
@@ -119,10 +120,10 @@ doReport auth tSince tUntil = do
         T.putStrLn (T.pack (formatTime defaultTimeLocale dateFormat (unpack (teStart (head tesPerDay))))
                  <> ": "
                  <> pretty (sum durations))
-      T.putStrLn ("Total: " <> pretty (fromIntegral (drTotalGrand report)))
+      T.putStrLn ("Total: " <> pretty @Double (fromIntegral (drTotalGrand report)))
   where unpack (ISO6801 x) = x
 
-data HoggleArgs = HoggleArgs Token Integer Integer HoggleCmd
+data HoggleArgs = HoggleArgs Token Integer HoggleCmd
 data HoggleCmd = TimeToday
                | TimeWeek
                | TimeMonth
@@ -137,19 +138,11 @@ data HoggleCmd = TimeToday
 token :: Parser Token
 token = Api <$> strOption (long "token" <> help "API Token")
 
-lastDowOpt :: Parser Integer
-lastDowOpt = option auto (long "last-dow"
-                       <> short 'l'
-                       <> value 5
-                       <> showDefault
-                       <> help "Last work day of week (1 = Monday)")
-
 workHoursOpt :: Parser Integer
-workHoursOpt = option auto (long "work-yours"
-                         <> short 'h'
+workHoursOpt = option auto (long "hours"
                          <> value 8
                          <> showDefault
-                         <> help "Number of hours to work per day in avg.")
+                         <> help "Number of hours to work per day.")
 
 todayCmd :: Mod CommandFields HoggleCmd
 todayCmd = command "today" (info (pure TimeToday) (progDesc "List today's time."))
@@ -167,7 +160,7 @@ stopTimerCmd :: Mod CommandFields HoggleCmd
 stopTimerCmd = command "stop" (info (pure StopTimer) (progDesc "Stop the current timer."))
 
 howLongCmd :: Mod CommandFields HoggleCmd
-howLongCmd = command "howlong" (info (pure HowLong) (progDesc "How long until 8h per day reached."))
+howLongCmd = command "howlong" (info (pure HowLong) (progDesc "How long until 8h reached."))
 
 reportCmd :: Mod CommandFields HoggleCmd
 reportCmd = command "report" (info (Report <$> strArgument (metavar "SINCE")
@@ -180,7 +173,6 @@ infoCmd = command "info" (info (pure Info) (progDesc "Display workspaces, client
 hoggleArgsParser :: Parser HoggleArgs
 hoggleArgsParser = HoggleArgs
                <$> token
-               <*> lastDowOpt
                <*> workHoursOpt
                <*> subparser (todayCmd
                            <> weekCmd
@@ -191,26 +183,8 @@ hoggleArgsParser = HoggleArgs
                            <> reportCmd
                            <> infoCmd)
 
-startOfCurrentWeek :: IO Day
-startOfCurrentWeek = do
-  today <- utctDay <$> getCurrentTime
-  let (year,weekNr,_) = toWeekDate today
-      monday = fromWeekDate year weekNr 1
-  return monday
-
 die :: String -> IO ()
 die msg = hPutStrLn stderr msg >> exitFailure
-
-requiredTime :: Integer -> Integer -> IO Integer
-requiredTime lastDow hoursPerDay = dowToSecondsNeeded
-                                 . min lastDow
-                                 . fromIntegral
-                                 . thrd
-                                 . toWeekDate
-                                 . utctDay
-                               <$> getCurrentTime
-  where thrd (_,_,x) = x
-        dowToSecondsNeeded dow = dow * hoursPerDay * 60 * 60
 
 dateFormat :: String
 dateFormat = "%Y-%m-%d"
