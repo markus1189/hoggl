@@ -102,6 +102,7 @@ data TimeEntry = TimeEntry {teId :: TimeEntryId
                            ,teStop :: Maybe ISO6801
                            ,teDuration :: NominalDiffTime
                            ,teDescription :: Maybe Text
+                           ,teTags :: Maybe [Text]
                            }deriving (Show,Eq)
 
 instance FromJSON TimeEntry where
@@ -114,6 +115,7 @@ instance FromJSON TimeEntry where
                                    <*> (d .: "stop" <|> d.:?? "end")
                                    <*> (convert <$> ((d .: "duration") <|> ((`div` 1000) <$> (d .: "dur"))))
                                    <*> d .:? "description"
+                                   <*> d .:? "tags"
           p _ = mzero
           convert :: Integer -> NominalDiffTime
           convert = fromIntegral
