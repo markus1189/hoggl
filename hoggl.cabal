@@ -27,7 +27,7 @@ library
                      , either
                      , formatting
                      , hashable
-                     , http-client < 0.6
+                     , http-client
                      , http-client-tls
                      , mtl
                      , servant >= 0.9
