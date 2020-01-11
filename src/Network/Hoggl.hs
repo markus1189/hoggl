@@ -55,7 +55,7 @@ listProjects' :: Maybe Token -> WorkspaceId -> ClientM [Project]
 currentTimeEntry :: Token -> ClientM (Maybe TimeEntry)
 currentTimeEntry token = (Just <$> currentTimeEntry' (Just token)) `catchError` handler
   where
-    handler :: ServantError -> ClientM (Maybe TimeEntry)
+    handler :: ClientError -> ClientM (Maybe TimeEntry)
     handler (DecodeFailure "{\"data\":null}" _) = return Nothing
     handler e = throwError e
 

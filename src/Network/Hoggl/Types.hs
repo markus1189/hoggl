@@ -80,7 +80,7 @@ instance ToHttpApiData Token where
    toUrlPiece (Api token) = toUrlPiece $ "Basic " ++ encode (token ++ ":api_token")
    toUrlPiece (UserPass user pass) = toUrlPiece $ "Basic " ++ encode (user ++ ":" ++ pass)
 
-data HogglError = ServantError ServantError | HogglError String deriving Show
+data HogglError = ServantError ClientError | HogglError String deriving Show
 
 data TimeEntryStart = TES { tesDescription :: Maybe Text
                           , tesTags :: [Text]
