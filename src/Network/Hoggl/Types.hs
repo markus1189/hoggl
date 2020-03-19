@@ -58,7 +58,7 @@ instance FromJSON ISO6801 where
   parseJSON (String s) = ISO6801 <$> parseTimeStamp s
   parseJSON _ = mzero
 
-parseTimeStamp :: Monad m => Text -> m UTCTime
+parseTimeStamp :: (MonadFail m, Monad m) => Text -> m UTCTime
 parseTimeStamp ts =
   parseTimeM True
              defaultTimeLocale
