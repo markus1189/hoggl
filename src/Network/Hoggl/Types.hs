@@ -23,6 +23,7 @@ module Network.Hoggl.Types (TimeEntryId(..)
 import           Codec.Binary.Base64.String (encode)
 import           Control.Applicative ((<|>))
 import           Control.Monad (mzero)
+import           Control.Monad.Fail
 import           Data.Aeson (FromJSON(..), Value (..), (.:), (.:?), ToJSON(..), object, (.=), (.!=))
 import           Data.Aeson.Types (Parser)
 import qualified Data.HashMap.Strict as H
